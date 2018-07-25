@@ -1,12 +1,14 @@
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.util.ArrayList;
 
 public class Renderer {
     
-    private int pW, pH, motionX, motionY, minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, 
-    	maxX = -1, maxY = -1;
+    private int pW, pH;
     private int[] p, p2;
-    private static final int THRESHHOLD = 100;
+    private static final int COLOR_THRESHOLD = 40, DISTANCE_THRESHOLD = 10;
+    
+    ArrayList<TrackedObject> objects = new ArrayList<TrackedObject>();
     
     public Renderer(Frame f) {
         
@@ -32,22 +34,6 @@ public class Renderer {
         }
         
     }
-    
-    public int getMotionX() {
-		return motionX;
-	}
-
-	public void setMotionX(int motionX) {
-		this.motionX = motionX;
-	}
-
-	public int getMotionY() {
-		return motionY;
-	}
-
-	public void setMotionY(int motionY) {
-		this.motionY = motionY;
-	}
 
 	public void drawDifferences(BufferedImage image1, BufferedImage image2) {
     	
@@ -55,34 +41,31 @@ public class Renderer {
     			image1.getHeight(), null, 0, image1.getWidth()),
     		pixels2 = image2.getRGB(0, 0, image2.getWidth(),
     	    	image2.getHeight(), null, 0, image2.getWidth());
-    	
-    	int xTotal = 0, yTotal = 0, points = 0;
-    	minX = Integer.MAX_VALUE; 
-    	minY = Integer.MAX_VALUE; 
-    	maxX = -1; 
-    	maxY = -1;
-    	
-    	for(int i = 0; i < p.length; i++) if(colorDistanceSqrd(pixels1[i], pixels2[i]) > THRESHHOLD * THRESHHOLD) {
+    	    	
+    	for(int i = 0; i < p.length; i++) if(colorDistanceSqrd(pixels1[i], pixels2[i]) > 
+    		COLOR_THRESHOLD * COLOR_THRESHOLD) {
 
     		p2[i] = 0xffffff;
-    		points++;
-    		xTotal += i % pW;
-    		yTotal += i / pW;
-    		if(i % pW > maxX) maxX = i % pW;
-    		else if(i % pW < minX) minX = i % pW;
-    		if(i / pW > maxY) maxY = i / pW;
-    		else if(i / pW < minY) minY = i / pW;
+    		
+    		boolean found = false;
+    		
+    		if(objects.size() == 0) objects.add(new TrackedObject(i % pW, i / pW));
+    		for(TrackedObject to : objects) {
+    			
+    			if(to.minDistanceToSqrd(i % pW, i / pW) < DISTANCE_THRESHOLD * DISTANCE_THRESHOLD) {
+    				to.include(i % pW, i / pW);
+    				found = true;
+    				break;
+    			}
+    			
+    		}
+    		
+    		if(!found) objects.add(new TrackedObject(i % pW, i / pW));
     		    		
     	}
-
-    	if(points > 10) {
-    		motionX = xTotal / points;
-    		motionY = yTotal / points;
-    		if(minX < Integer.MAX_VALUE && minY < Integer.MAX_VALUE && maxX > -1 && maxY > -1)
-    			drawRect(minX, minY, maxX - minX, maxY - minY, 0xff0000);
-    		drawRect(motionX - 2, motionY - 2, 5, 5, 0x00ff00);
-    		setPixel(motionX, motionY, 0x00ff00);
-    	}
+    	
+    	for(TrackedObject to : objects) if(to.size() > 400) to.draw(this);
+    	objects.clear();
     	    
     }
     
@@ -109,6 +92,18 @@ public class Renderer {
         }
                 
         p[x + y * pW] = value;
+        
+    }
+    
+    public void setPixel2(int x, int y, int value) {
+        
+        if((x < 0 || x >= pW || y < 0 || y >= pH) || value == 0xffff00ff) {
+            
+            return;
+            
+        }
+                
+        p2[x + y * pW] = value;
         
     }
     
